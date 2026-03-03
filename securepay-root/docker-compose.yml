@@ -1,0 +1,128 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: securepay-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - securepay-network
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: securepay-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      GATEWAY_PORT: 3000
+      GATEWAY_SECRET: ${GATEWAY_SECRET}
+      AUTH_SERVICE_URL: http://auth-service:3001
+      TRANSFER_SERVICE_URL: http://transfer-service:3002
+      AUDIT_SERVICE_URL: http://audit-logs:3003
+      JWT_SECRET: ${JWT_SECRET}
+      NODE_ENV: ${NODE_ENV}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+    depends_on:
+      - auth-service
+      - transfer-service
+      - audit-logs
+    networks:
+      - securepay-network
+    restart: unless-stopped
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: securepay-auth
+    ports:
+      - "3001:3001"
+    environment:
+      AUTH_SERVICE_PORT: 3001
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRY: ${JWT_EXPIRY}
+      NODE_ENV: ${NODE_ENV}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - securepay-network
+    restart: unless-stopped
+
+  # Transfer Service
+  transfer-service:
+    build:
+      context: ./transfer-service
+      dockerfile: Dockerfile
+    container_name: securepay-transfer
+    ports:
+      - "3002:3002"
+    environment:
+      TRANSFER_SERVICE_PORT: 3002
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      AUDIT_SERVICE_URL: http://audit-logs:3003
+      NODE_ENV: ${NODE_ENV}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - securepay-network
+    restart: unless-stopped
+
+  # Audit Logs Service
+  audit-logs:
+    build:
+      context: ./audit-logs
+      dockerfile: Dockerfile
+    container_name: securepay-audit
+    ports:
+      - "3003:3003"
+    environment:
+      AUDIT_SERVICE_PORT: 3003
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      NODE_ENV: ${NODE_ENV}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - securepay-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  securepay-network:
+    driver: bridge

@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: securepay-postgres-dam
+    environment:
+      POSTGRES_USER: securepay_user
+      POSTGRES_PASSWORD: SecurePass123!@
+      POSTGRES_DB: securepay
+    volumes:
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U securepay_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - securepay-network-dam
+      - secure-net
+
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: securepay-auth-dam
+    ports:
+      - "3001:3001"
+    environment:
+      AUTH_SERVICE_PORT: 3001
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: securepay
+      DB_USER: securepay_user
+      DB_PASSWORD: SecurePass123!@
+      JWT_SECRET: jwt-secret-key-change-in-production
+      NODE_ENV: development
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - secure-net
+      - securepay-network-dam
+    restart: unless-stopped
+
+  transfer-service:
+    build:
+      context: ./transfer-service
+      dockerfile: Dockerfile
+    container_name: securepay-transfer-dam
+    ports:
+      - "3002:3002"
+    environment:
+      TRANSFER_SERVICE_PORT: 3002
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: securepay
+      DB_USER: securepay_user
+      DB_PASSWORD: SecurePass123!@
+      NODE_ENV: development
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - securepay-network-dam
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+
+  transfer-service:
+    build: ./transfer-service
+    user: "node" # 🛡️ Mínimo Privilegio: No corre como Root
+    depends_on:
+      - db
+    networks:
+      - secure-net
+    environment:
+      DB_HOST: db
+
+networks:
+  secure-net:
+    driver: bridge # Red aislada: Los servicios no se ven desde el exterior, solo vía Gateway

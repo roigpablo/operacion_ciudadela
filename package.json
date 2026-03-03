@@ -1,0 +1,26 @@
+{
+  "name": "operacion_ciudadela",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/roigpablo/operacion_ciudadela.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/roigpablo/operacion_ciudadela/issues"
+  },
+  "homepage": "https://github.com/roigpablo/operacion_ciudadela#readme",
+  "dependencies": {
+    "express": "^5.2.1",
+    "express-validator": "^7.3.1",
+    "helmet": "^8.1.0"
+  }
+}
